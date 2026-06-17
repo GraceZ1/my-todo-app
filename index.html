@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Todo 任务管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2520;
+      --muted: #69746e;
+      --line: #dce4df;
+      --paper: #fffdfa;
+      --wash: #f4f0e8;
+      --green: #2f7d58;
+      --green-dark: #205c3f;
+      --blue: #315e8a;
+      --red: #b84b3f;
+      --gold: #c3952f;
+      --shadow: 0 22px 70px rgba(41, 49, 44, .14);
+      font-family: "Aptos", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(29,37,32,.045) 1px, transparent 1px) 0 0 / 34px 34px,
+        linear-gradient(180deg, #fbf7ef 0%, #eef4ef 100%);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .page {
+      width: min(980px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 32px 0 44px;
+    }
+
+    .app-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 8px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
+      font-size: clamp(34px, 6vw, 64px);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .panel {
+      background: rgba(255,253,250,.86);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .auth {
+      width: min(520px, 100%);
+      margin: 54px auto 0;
+      padding: 26px;
+    }
+
+    .auth h2,
+    .todo-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .auth form {
+      display: grid;
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    input {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid #cfd9d3;
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      outline: none;
+      padding: 11px 13px;
+      transition: border-color .18s ease, box-shadow .18s ease;
+    }
+
+    input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(47,125,88,.14);
+    }
+
+    .btn {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      padding: 0 16px;
+      font-weight: 900;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: #adbbb4;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: .62;
+    }
+
+    .btn.primary {
+      background: var(--green);
+      border-color: var(--green);
+      color: white;
+    }
+
+    .btn.primary:hover:not(:disabled) {
+      background: var(--green-dark);
+    }
+
+    .btn.danger {
+      color: var(--red);
+      border-color: rgba(184,75,63,.32);
+    }
+
+    .auth-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .message {
+      min-height: 22px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+
+    .message.error {
+      color: var(--red);
+      font-weight: 800;
+    }
+
+    .todo {
+      margin-top: 24px;
+    }
+
+    .todo-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,253,250,.72);
+    }
+
+    .user-box {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .user-email {
+      color: var(--blue);
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .add-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 18px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .todo-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .todo-item {
+      display: grid;
+      grid-template-columns: 32px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 62px;
+      padding: 12px 18px;
+      border-top: 1px solid #edf1ee;
+      animation: rise .24s ease both;
+    }
+
+    .todo-item:hover {
+      background: #fbfaf5;
+    }
+
+    .check {
+      width: 24px;
+      height: 24px;
+      accent-color: var(--green);
+    }
+
+    .todo-text {
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .todo-item.done .todo-text {
+      color: var(--muted);
+      text-decoration: line-through;
+      text-decoration-thickness: 2px;
+      text-decoration-color: rgba(47,125,88,.45);
+    }
+
+    .delete-btn {
+      min-width: 38px;
+      height: 38px;
+      border: 1px solid rgba(184,75,63,.25);
+      border-radius: 8px;
+      background: white;
+      color: var(--red);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .empty {
+      padding: 42px 18px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 800;
+      line-height: 1.7;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100% - 36px));
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #1d2520;
+      color: white;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(14px);
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+      overflow-wrap: anywhere;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.error {
+      background: var(--red);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 680px) {
+      .page {
+        width: min(100% - 20px, 980px);
+        padding-top: 22px;
+      }
+
+      .app-head,
+      .todo-top {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .auth {
+        margin-top: 28px;
+        padding: 18px;
+      }
+
+      .auth-actions,
+      .add-row {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-item {
+        grid-template-columns: 30px 1fr 38px;
+        padding: 12px;
+      }
+
+      .todo-top,
+      .add-row {
+        padding: 14px;
+      }
+
+      .summary {
+        padding: 0 14px 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="app-head">
+      <div class="brand">
+        <span class="eyebrow">Supabase Todo</span>
+        <h1>今日任务</h1>
+        <p class="hint">登录后管理自己的待办事项。数据由 Supabase Auth 和 RLS 隔离。</p>
+      </div>
+    </header>
+
+    <section class="panel auth" id="authView">
+      <h2>登录或注册</h2>
+      <p class="hint">使用邮箱和密码进入你的任务清单。</p>
+      <form id="authForm">
+        <div class="field">
+          <label for="email">邮箱</label>
+          <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="至少 6 位" />
+        </div>
+        <div class="auth-actions">
+          <button class="btn primary" id="loginBtn" type="submit">登录</button>
+          <button class="btn" id="signupBtn" type="button">注册</button>
+        </div>
+        <div class="message" id="authMessage" role="status"></div>
+      </form>
+    </section>
+
+    <section class="panel todo" id="todoView" hidden>
+      <div class="todo-top">
+        <div class="user-box">
+          <h2 class="todo-title">任务列表</h2>
+          <span class="user-email" id="userEmail"></span>
+        </div>
+        <button class="btn danger" id="logoutBtn" type="button">登出</button>
+      </div>
+
+      <form class="add-row" id="todoForm">
+        <input id="todoInput" name="title" autocomplete="off" required placeholder="输入任务，按 Enter 添加" />
+        <button class="btn primary" id="addBtn" type="submit">添加</button>
+      </form>
+
+      <div class="summary">
+        <span id="todoCount">0 个任务</span>
+        <span id="doneCount">已完成 0</span>
+      </div>
+
+      <ul class="todo-list" id="todoList"></ul>
+      <div class="empty" id="emptyState">暂无任务。先添加一件今天要完成的事。</div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const SUPABASE_URL = "https://lrpjnoefwxoorrschtxh.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_1Um7iRgQ6oWJLEiFJUWEQw_pDTBiceR";
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const els = {};
+    let currentUser = null;
+    let todos = [];
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      [
+        "authView", "todoView", "authForm", "email", "password", "loginBtn", "signupBtn",
+        "authMessage", "logoutBtn", "todoForm", "todoInput", "addBtn", "todoList",
+        "emptyState", "userEmail", "todoCount", "doneCount", "toast"
+      ].forEach((id) => els[id] = document.getElementById(id));
+
+      els.authForm.addEventListener("submit", signIn);
+      els.signupBtn.addEventListener("click", signUp);
+      els.logoutBtn.addEventListener("click", signOut);
+      els.todoForm.addEventListener("submit", addTodo);
+
+      const { data } = await client.auth.getSession();
+      await setUser(data.session?.user || null);
+
+      client.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user || null);
+      });
+    });
+
+    async function setUser(user) {
+      currentUser = user;
+      todos = [];
+      renderTodos();
+
+      if (!currentUser) {
+        els.authView.hidden = false;
+        els.todoView.hidden = true;
+        els.userEmail.textContent = "";
+        return;
+      }
+
+      els.authView.hidden = true;
+      els.todoView.hidden = false;
+      els.userEmail.textContent = currentUser.email || currentUser.id;
+      await loadTodos();
+      els.todoInput.focus();
+    }
+
+    async function signIn(event) {
+      event.preventDefault();
+      if (!els.authForm.reportValidity()) return;
+
+      setAuthBusy(true);
+      clearAuthMessage();
+
+      let error = null;
+      try {
+        const result = await client.auth.signInWithPassword({
+          email: els.email.value.trim(),
+          password: els.password.value
+        });
+        error = result.error;
+      } catch (err) {
+        error = err;
+      }
+
+      setAuthBusy(false);
+      if (error) {
+        showAuthMessage(authErrorText(error), true);
+        return;
+      }
+
+      showAuthMessage("");
+    }
+
+    async function signUp() {
+      if (!els.authForm.reportValidity()) return;
+
+      setAuthBusy(true);
+      clearAuthMessage();
+
+      // Supabase confirmation links must redirect to an http(s) URL, not file://.
+      const emailRedirectTo = /^https?:$/.test(window.location.protocol)
+        ? `${window.location.origin}${window.location.pathname}`
+        : undefined;
+
+      let data = null;
+      let error = null;
+      try {
+        const result = await client.auth.signUp({
+          email: els.email.value.trim(),
+          password: els.password.value,
+          options: emailRedirectTo ? { emailRedirectTo } : undefined
+        });
+        data = result.data;
+        error = result.error;
+      } catch (err) {
+        error = err;
+      }
+
+      setAuthBusy(false);
+      if (error) {
+        showAuthMessage(authErrorText(error), true);
+        return;
+      }
+
+      if (!data.session) {
+        showAuthMessage("注册请求已提交。请打开邮箱，点击 Supabase 发来的验证链接后再登录。");
+      } else {
+        showToast("注册成功");
+      }
+    }
+
+    async function signOut() {
+      const { error } = await client.auth.signOut();
+      if (error) {
+        showToast(error.message, "error");
+      }
+    }
+
+    async function loadTodos() {
+      const { data, error } = await client
+        .from("todos")
+        .select("id,user_id,title,is_done,created_at")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        showToast(error.message, "error");
+        return;
+      }
+
+      todos = data || [];
+      renderTodos();
+    }
+
+    async function addTodo(event) {
+      event.preventDefault();
+      const title = els.todoInput.value.trim();
+      if (!title || !currentUser) return;
+
+      setTodoBusy(true);
+      const { data, error } = await client
+        .from("todos")
+        .insert({
+          user_id: currentUser.id,
+          title,
+          is_done: false
+        })
+        .select("id,user_id,title,is_done,created_at")
+        .single();
+
+      setTodoBusy(false);
+      if (error) {
+        showToast(error.message, "error");
+        return;
+      }
+
+      todos = [data, ...todos];
+      els.todoInput.value = "";
+      renderTodos();
+    }
+
+    async function toggleTodo(id, isDone) {
+      const previous = [...todos];
+      todos = todos.map((todo) => todo.id === id ? { ...todo, is_done: isDone } : todo);
+      renderTodos();
+
+      const { error } = await client
+        .from("todos")
+        .update({ is_done: isDone })
+        .eq("id", id)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        todos = previous;
+        renderTodos();
+        showToast(error.message, "error");
+      }
+    }
+
+    async function deleteTodo(id) {
+      const previous = [...todos];
+      todos = todos.filter((todo) => todo.id !== id);
+      renderTodos();
+
+      const { error } = await client
+        .from("todos")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        todos = previous;
+        renderTodos();
+        showToast(error.message, "error");
+      }
+    }
+
+    function renderTodos() {
+      if (!els.todoList) return;
+
+      els.todoList.innerHTML = "";
+      els.emptyState.hidden = todos.length > 0;
+
+      const done = todos.filter((todo) => todo.is_done).length;
+      els.todoCount.textContent = `${todos.length} 个任务`;
+      els.doneCount.textContent = `已完成 ${done}`;
+
+      const fragment = document.createDocumentFragment();
+      todos.forEach((todo) => {
+        const item = document.createElement("li");
+        item.className = `todo-item${todo.is_done ? " done" : ""}`;
+        item.innerHTML = `
+          <input class="check" type="checkbox" aria-label="标记完成" ${todo.is_done ? "checked" : ""} />
+          <span class="todo-text">${escapeHtml(todo.title)}</span>
+          <button class="delete-btn" type="button" aria-label="删除任务">×</button>
+        `;
+
+        item.querySelector(".check").addEventListener("change", (event) => {
+          toggleTodo(todo.id, event.target.checked);
+        });
+        item.querySelector(".delete-btn").addEventListener("click", () => {
+          deleteTodo(todo.id);
+        });
+
+        fragment.appendChild(item);
+      });
+      els.todoList.appendChild(fragment);
+    }
+
+    function setAuthBusy(isBusy) {
+      els.loginBtn.disabled = isBusy;
+      els.signupBtn.disabled = isBusy;
+      els.loginBtn.textContent = isBusy ? "处理中" : "登录";
+    }
+
+    function setTodoBusy(isBusy) {
+      els.addBtn.disabled = isBusy;
+      els.todoInput.disabled = isBusy;
+      els.addBtn.textContent = isBusy ? "添加中" : "添加";
+    }
+
+    function clearAuthMessage() {
+      showAuthMessage("");
+    }
+
+    function showAuthMessage(message, isError = false) {
+      els.authMessage.textContent = message;
+      els.authMessage.className = `message${isError ? " error" : ""}`;
+    }
+
+    function showToast(message, type = "success") {
+      els.toast.textContent = message;
+      els.toast.className = `toast show ${type}`;
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => {
+        els.toast.classList.remove("show");
+      }, 2600);
+    }
+
+    function authErrorText(error) {
+      const message = String(error?.message || error || "");
+      const lower = message.toLowerCase();
+
+      if (lower.includes("email not confirmed")) {
+        return "邮箱还没有验证。请先打开注册邮箱，点击 Supabase 发来的验证链接。";
+      }
+      if (lower.includes("invalid login credentials")) {
+        return "邮箱或密码不正确。如果刚注册，请先完成邮箱验证。";
+      }
+      if (lower.includes("user already registered") || lower.includes("already been registered")) {
+        return "这个邮箱已经注册过了，请直接登录。";
+      }
+      if (lower.includes("password")) {
+        return "密码不符合要求。请使用至少 6 位密码。";
+      }
+      if (lower.includes("failed to fetch") || lower.includes("networkerror")) {
+        return "无法连接 Supabase。请确认网络正常，并使用 http://127.0.0.1:5500 打开页面。";
+      }
+      return message || "认证失败，请稍后重试。";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+  </script>
+</body>
+</html>
