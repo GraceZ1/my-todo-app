@@ -194,6 +194,34 @@
       font-weight: 800;
     }
 
+    .verify-card {
+      margin-top: 18px;
+      border: 1px solid rgba(47,125,88,.24);
+      border-radius: 8px;
+      background: #f4fbf6;
+      padding: 16px;
+    }
+
+    .verify-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .verify-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .verify-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
     .todo {
       margin-top: 24px;
     }
@@ -356,6 +384,7 @@
       }
 
       .auth-actions,
+      .verify-actions,
       .add-row {
         grid-template-columns: 1fr;
       }
@@ -404,6 +433,15 @@
         </div>
         <div class="message" id="authMessage" role="status"></div>
       </form>
+
+      <div class="verify-card" id="verifyPanel" hidden>
+        <h3>验证邮件已发送</h3>
+        <p id="verifyText">请打开注册邮箱，点击 Supabase 发来的验证链接。完成后回到这里继续登录。</p>
+        <div class="verify-actions">
+          <button class="btn primary" id="verifiedLoginBtn" type="button">我已完成验证，登录</button>
+          <button class="btn" id="cancelVerifyBtn" type="button">暂不验证</button>
+        </div>
+      </div>
     </section>
 
     <section class="panel todo" id="todoView" hidden>
@@ -440,16 +478,20 @@
     const els = {};
     let currentUser = null;
     let todos = [];
+    let pendingVerification = null;
 
     document.addEventListener("DOMContentLoaded", async () => {
       [
         "authView", "todoView", "authForm", "email", "password", "loginBtn", "signupBtn",
         "authMessage", "logoutBtn", "todoForm", "todoInput", "addBtn", "todoList",
-        "emptyState", "userEmail", "todoCount", "doneCount", "toast"
+        "emptyState", "userEmail", "todoCount", "doneCount", "toast", "verifyPanel",
+        "verifyText", "verifiedLoginBtn", "cancelVerifyBtn"
       ].forEach((id) => els[id] = document.getElementById(id));
 
       els.authForm.addEventListener("submit", signIn);
       els.signupBtn.addEventListener("click", signUp);
+      els.verifiedLoginBtn.addEventListener("click", signInAfterVerification);
+      els.cancelVerifyBtn.addEventListener("click", cancelVerification);
       els.logoutBtn.addEventListener("click", signOut);
       els.todoForm.addEventListener("submit", addTodo);
 
@@ -539,10 +581,45 @@
       }
 
       if (!data.session) {
-        showAuthMessage("注册请求已提交。请打开邮箱，点击 Supabase 发来的验证链接后再登录。");
+        showVerificationPanel(els.email.value.trim(), els.password.value);
       } else {
         showToast("注册成功");
       }
+    }
+
+    async function signInAfterVerification() {
+      const email = pendingVerification?.email || els.email.value.trim();
+      const password = pendingVerification?.password || els.password.value;
+      if (!email || !password) {
+        showAuthMessage("请先输入注册邮箱和密码，再继续登录。", true);
+        hideVerificationPanel();
+        return;
+      }
+
+      setVerificationBusy(true);
+      clearAuthMessage();
+
+      let error = null;
+      try {
+        const result = await client.auth.signInWithPassword({ email, password });
+        error = result.error;
+      } catch (err) {
+        error = err;
+      }
+
+      setVerificationBusy(false);
+      if (error) {
+        showAuthMessage(authErrorText(error), true);
+        return;
+      }
+
+      hideVerificationPanel();
+    }
+
+    function cancelVerification() {
+      hideVerificationPanel();
+      showAuthMessage("已返回首页。完成邮箱验证后，可以直接用邮箱和密码登录。");
+      els.email.focus();
     }
 
     async function signOut() {
@@ -682,6 +759,25 @@
     function showAuthMessage(message, isError = false) {
       els.authMessage.textContent = message;
       els.authMessage.className = `message${isError ? " error" : ""}`;
+    }
+
+    function showVerificationPanel(email, password) {
+      pendingVerification = { email, password };
+      els.verifyText.textContent = `验证邮件已发送到 ${email}。请打开邮箱，点击 Supabase 发来的验证链接。完成后回到这里点击“我已完成验证，登录”。`;
+      els.verifyPanel.hidden = false;
+      showAuthMessage("");
+    }
+
+    function hideVerificationPanel() {
+      pendingVerification = null;
+      els.verifyPanel.hidden = true;
+      setVerificationBusy(false);
+    }
+
+    function setVerificationBusy(isBusy) {
+      els.verifiedLoginBtn.disabled = isBusy;
+      els.cancelVerifyBtn.disabled = isBusy;
+      els.verifiedLoginBtn.textContent = isBusy ? "登录中" : "我已完成验证，登录";
     }
 
     function showToast(message, type = "success") {
